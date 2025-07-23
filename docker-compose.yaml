@@ -1,0 +1,25 @@
+services:
+  esv_toolbox:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: esv_toolbox
+    restart: always
+    ports:
+      - "8501:8501"
+      - "1434:1434"
+    volumes:
+      - ./src:/app/src
+      - ./pages:/app/pages
+      - ./data:/app/data
+      - ./input:/app/input
+      - ./img:/app/img
+      - ./.env:/app/.env
+      - ./main.py:/app/main.py
+      - ./requirements.txt:/app/requirements.txt
+    environment:
+      - TZ=Europe/Warsaw
+      - PYTHONPATH=/app
+      
+
+  

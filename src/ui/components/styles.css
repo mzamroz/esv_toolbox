@@ -1,0 +1,165 @@
+/* Główne style dla panelu bocznego */
+div[data-testid="stSidebar"] {
+    background-color: #f8f9fa;
+    border-right: 1px solid #e9ecef;
+    padding: 1rem;
+}
+
+/* Tytuł w panelu bocznym */
+div[data-testid="stSidebar"] h1 {
+    color: #0066cc;
+    font-size: 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid #0066cc;
+    padding-bottom: 0.5rem;
+}
+
+/* Nagłówki w panelu bocznym */
+div[data-testid="stSidebar"] h3 {
+    color: #495057;
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+/* Przyciski w panelu bocznym */
+div[data-testid="stSidebar"] button {
+    background-color: #0066cc;
+    color: white;
+    border-radius: 5px;
+    margin-bottom: 0.5rem;
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+div[data-testid="stSidebar"] button:hover {
+    background-color: #004c99;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Informacja o zalogowanym użytkowniku */
+div[data-testid="stSidebar"] p {
+    background-color: #e9ecef;
+    padding: 0.5rem;
+    border-radius: 5px;
+    margin-bottom: 1rem;
+    font-weight: bold;
+}
+
+/* Przycisk wylogowania */
+div[data-testid="stSidebar"] button:last-child {
+    background-color: #dc3545;
+    margin-top: 1rem;
+}
+
+div[data-testid="stSidebar"] button:last-child:hover {
+    background-color: #bd2130;
+}
+
+/* Ostrzeżenia w panelu bocznym */
+div[data-testid="stSidebar"] .stAlert {
+    margin-bottom: 1rem;
+}
+
+/* Separator sekcji */
+.sidebar-separator {
+    height: 1px;
+    background-color: #e9ecef;
+    margin: 1rem 0;
+}
+
+/* Logo aplikacji */
+.sidebar-logo {
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 3rem;
+}
+
+.sidebar-logo img {
+    max-width: 80%;
+    height: auto;
+}
+
+/* Stopka panelu bocznego */
+.sidebar-footer {
+    position: relative;
+    font-size: 0.8rem;
+    color: #6c757d;
+    text-align: center;
+    margin-top: 1rem;
+}
+
+/* Style dla formularza logowania */
+div[data-testid="stSidebar"] form {
+    background-color: white;
+    padding: 1rem;
+    border-radius: 5px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1rem;
+}
+
+div[data-testid="stSidebar"] form .stTextInput > div > div {
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+
+div[data-testid="stSidebar"] form .stTextInput input {
+    border: 1px solid #ced4da;
+    border-radius: 5px;
+}
+
+div[data-testid="stSidebar"] form .stButton > button {
+    background-color: #28a745;
+    font-weight: bold;
+}
+
+div[data-testid="stSidebar"] form .stButton > button:hover {
+    background-color: #218838;
+}
+
+/* Ikony w przyciskach menu */
+div[data-testid="stSidebar"] button {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    padding-left: 1rem;
+}
+
+/* Animacja przycisków */
+div[data-testid="stSidebar"] button {
+    position: relative;
+    overflow: hidden;
+}
+
+div[data-testid="stSidebar"] button::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.5);
+    opacity: 0;
+    border-radius: 100%;
+    transform: scale(1, 1) translate(-50%);
+    transform-origin: 50% 50%;
+}
+
+div[data-testid="stSidebar"] button:hover::after {
+    animation: ripple 1s ease-out;
+}
+
+@keyframes ripple {
+    0% {
+        transform: scale(0, 0);
+        opacity: 0.5;
+    }
+    20% {
+        transform: scale(25, 25);
+        opacity: 0.3;
+    }
+    100% {
+        opacity: 0;
+        transform: scale(40, 40);
+    }
+} 
