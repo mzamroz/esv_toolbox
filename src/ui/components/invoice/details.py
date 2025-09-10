@@ -11,6 +11,7 @@ from src.db.database import (
     add_comment,
     accept_document,
     delete_comment,
+    update_comment,
     get_accounts,
     get_dimensions,
     get_budget_positions,
@@ -264,10 +265,17 @@ def display_invoice_comments(invoice_id: str, company: str):
     # Dodanie selectbox do wyboru komentarza
     if comments:
         comment_options = [f"{comment['Line No_']}: {comment['Comment']}" for comment in comments]
-        selected_comment = st.selectbox("Wybierz komentarz do usunięcia", options=comment_options, key="select_comment")
+        selected_comment = st.selectbox("Wybierz komentarz", options=comment_options, key="select_comment")
         
-        # Przycisk do usunięcia wybranego komentarza
-        if st.button("Usuń wybrany komentarz"):
+        # Przyciski do akcji na komentarzach - jeden pod drugim
+        if st.button("Edytuj wybrany komentarz", use_container_width=True):
+            st.session_state.edit_mode = True
+            # Znajdź wybrany komentarz i załaduj jego dane
+            line_no = selected_comment.split(':')[0]
+            selected_comment_data = next(comment for comment in comments if str(comment['Line No_']) == line_no)
+            st.session_state.editing_comment = selected_comment_data
+        
+        if st.button("Usuń wybrany komentarz", use_container_width=True):
             st.session_state.confirm_delete = True
 
     if st.session_state.get('confirm_delete', False):
@@ -280,218 +288,612 @@ def display_invoice_comments(invoice_id: str, company: str):
         elif st.button("Anuluj"):
             st.session_state.confirm_delete = False
     
-    # Formularz do dodawania nowych komentarzy poniżej listy
-    st.subheader("Dodaj nowy komentarz")
-    
-    # Formularz do dodawania komentarzy
-    with st.form("comment_form"):
-        # Ukryte pole do przechowywania poprzedniej wartości pozycji budżetowej
-        if 'previous_budget_position' not in st.session_state:
-            st.session_state.previous_budget_position = ""
+    # Formularz do edytowania komentarza
+    if st.session_state.get('edit_mode', False) and 'editing_comment' in st.session_state:
+        st.subheader("Edytuj komentarz")
+        editing_comment = st.session_state.editing_comment
         
-        # Pole tekstowe komentarza
-        comment_text = st.text_area(
-            "Treść komentarza",
-            value=st.session_state.nowy_komentarz.get('Komentarz', ''), 
-            height=150,
-            key=f"comment_text_input_{st.session_state.selectbox_key_suffix}"
-        )
-        st.session_state.nowy_komentarz['Komentarz'] = comment_text
-
-        # Pole kwota netto z kalkulatorem
-        kwota_netto_input = st.text_input(
-            "Kwota netto (pole obliczeniowe)", 
-            help="Wprowadź wartość liczbową lub działanie matematyczne (np. 2+2-1). Przecinek zostanie automatycznie zamieniony na kropkę. Naciśnij Enter aby obliczyć działanie.",
-            value=st.session_state.nowy_komentarz.get('Kwota_netto', ''),
-            key=f"kwota_netto_input_{st.session_state.selectbox_key_suffix}"
-        )
-        
-        # Walidacja i konwersja kwoty netto z obsługą działań matematycznych
-        kwota_netto = ""
-        if kwota_netto_input:
-            kwota_netto_input = kwota_netto_input.replace(',', '.')
-            
-            # Sprawdzenie czy wprowadzono działanie matematyczne
-            if any(op in kwota_netto_input for op in ['+', '-', '*', '/', '(', ')']):
-                try:
-                    # Bezpieczne obliczenie wyrażenia matematycznego
-                    # Usunięcie białych znaków i sprawdzenie dozwolonych znaków
-                    cleaned_input = ''.join(kwota_netto_input.split())
-                    allowed_chars = set('0123456789+-*/().')
-                    if set(cleaned_input).issubset(allowed_chars):
-                        result = eval(cleaned_input)
-                        kwota_netto = f"{result:.2f}"
-                        st.session_state.nowy_komentarz['Kwota_netto'] = kwota_netto
-                        st.info(f"Obliczone: {kwota_netto_input} = {kwota_netto}")
-                    else:
-                        st.error("Działanie zawiera niedozwolone znaki. Używaj tylko cyfr i operatorów: + - * / ( )")
-                        kwota_netto = ""
-                except (ValueError, SyntaxError, ZeroDivisionError):
-                    st.error("Nieprawidłowe działanie matematyczne. Sprawdź składnię.")
-                    kwota_netto = ""
-            else:
-                # Standardowa walidacja dla pojedynczej liczby
-                try:
-                    kwota_float = float(kwota_netto_input)
-                    kwota_netto = f"{kwota_float:.2f}"
-                    st.session_state.nowy_komentarz['Kwota_netto'] = kwota_netto
-                except ValueError:
-                    st.error("Wprowadzona wartość nie jest liczbą ani prawidłowym działaniem matematycznym.")
-                    kwota_netto = ""
-
-        # Pobieranie pozycji budżetowych
-        budget_positions = get_budget_positions(company)
-        if budget_positions:
-            # Przygotowanie opcji do selectboxa
-            budget_options = []
-            budget_codes_map = {}
-            account_no_map = {}
-            
-            for position in budget_positions:
-                code = position.get('Code', '')
-                account_no = position.get('Account No_', '')
-                if code:
-                    display_text = f"{code} - {account_no}" if account_no else code
-                    budget_options.append(display_text)
-                    budget_codes_map[display_text] = code
-                    account_no_map[code] = account_no
-            
-            # Dodanie pustej opcji na początku
-            budget_options.insert(0, "")
-            
-            # Selectbox do wyboru pozycji budżetowej
-            selected_option = st.selectbox(
-                "Wybierz pozycję budżetową",
-                options=budget_options,
-                index=0,
-                key=f"budget_position_selectbox_{st.session_state.selectbox_key_suffix}"
+        with st.form("edit_comment_form"):
+            # Pole tekstowe komentarza - pełna szerokość
+            edited_comment_text = st.text_area(
+                "Treść komentarza",
+                value=editing_comment.get('Comment', ''), 
+                height=150,
+                key="edit_comment_text_input"
             )
             
-            # Pobieranie numeru konta dla wybranej pozycji budżetowej
-            if selected_option:
-                selected_code = budget_codes_map.get(selected_option, '')
-                account_no = account_no_map.get(selected_code, '')
+            # Organizacja pól w dwóch kolumnach (podobnie jak w formularzu dodawania)
+            edit_col_left, edit_col_right = st.columns(2)
+            
+            with edit_col_left:
+                # Kwota netto
+                edited_amount = st.text_input(
+                    "Kwota netto",
+                    value=str(editing_comment.get('Amount', '')),
+                    key="edit_amount_input"
+                )
                 
-                # Aktualizacja stanu sesji
-                st.session_state.nowy_komentarz['Pozycja_budzetowa'] = selected_code
-                
-                # Automatyczne ustawienie numeru konta
-                if account_no:
-                    st.session_state.nowy_komentarz['Nr_konta'] = account_no
+                # Pozycja budżetowa - z selectbox
+                budget_positions = get_budget_positions(company)
+                if budget_positions:
+                    budget_options = []
+                    budget_codes_map = {}
+                    account_no_map = {}
                     
-                # Sprawdzenie, czy pozycja budżetowa się zmieniła
-                if selected_code != st.session_state.previous_budget_position:
-                    st.session_state.previous_budget_position = selected_code
-                    st.info("Wybrano nową pozycję budżetową. Kliknij 'Zastosuj zmiany', aby zaktualizować numer konta.")
-            
-            # Pobieranie wszystkich kont
-            accounts = get_accounts(company)
-            if accounts:
-                # Tworzenie DataFrame z kontami
-                accounts_df = pd.DataFrame(accounts)
-                display_columns = ['No_', 'Name', 'Search Name']
-                display_columns = [col for col in display_columns if col in accounts_df.columns]
-                column_names = {
-                    'No_': 'Numer konta',
-                    'Name': 'Nazwa',
-                    'Search Name': 'Nazwa wyszukiwania'
-                }
-                accounts_df_display = accounts_df[display_columns].rename(columns=column_names)
-                
-                # Przygotowanie opcji do selectboxa
-                account_options = [f"{row['No_']} - {row['Name']}" for _, row in accounts_df.iterrows()]
-                account_options.insert(0, "")  # Dodanie pustej opcji na początku
-                
-                # Znalezienie domyślnej wartości dla selectboxa kont
-                default_index = 0
-                current_account_no = st.session_state.nowy_komentarz.get('Nr_konta', '')
-                
-                if current_account_no:
-                    for i, option in enumerate(account_options):
-                        if option.startswith(current_account_no + " -"):
-                            default_index = i
+                    for position in budget_positions:
+                        code = position.get('Code', '')
+                        account_no = position.get('Account No_', '')
+                        if code:
+                            display_text = f"{code} - {account_no}" if account_no else code
+                            budget_options.append(display_text)
+                            budget_codes_map[display_text] = code
+                            account_no_map[code] = account_no
+                    
+                    budget_options.insert(0, "")
+                    
+                    # Znajdź aktualną wartość
+                    current_budget = str(editing_comment.get('Pozycja budżetowa', ''))
+                    default_budget_index = 0
+                    for i, option in enumerate(budget_options):
+                        if option.startswith(current_budget + " -") or option == current_budget:
+                            default_budget_index = i
                             break
+                    
+                    selected_budget_option = st.selectbox(
+                        "Pozycja budżetowa",
+                        options=budget_options,
+                        index=default_budget_index,
+                        key="edit_budget_pos_selectbox"
+                    )
+                    
+                    if selected_budget_option:
+                        edited_budget_pos = budget_codes_map.get(selected_budget_option, selected_budget_option)
+                    else:
+                        edited_budget_pos = ""
+                else:
+                    edited_budget_pos = st.text_input(
+                        "Pozycja budżetowa",
+                        value=str(editing_comment.get('Pozycja budżetowa', '')),
+                        key="edit_budget_pos_input"
+                    )
+            
+            with edit_col_right:
+                # Numer konta - z selectbox
+                accounts = get_accounts(company)
+                if accounts:
+                    account_options = [f"{row['No_']} - {row['Name']}" for row in accounts]
+                    account_options.insert(0, "")
+                    
+                    # Znajdź aktualną wartość
+                    current_account = str(editing_comment.get('Account No_', ''))
+                    default_account_index = 0
+                    for i, option in enumerate(account_options):
+                        if option.startswith(current_account + " -"):
+                            default_account_index = i
+                            break
+                    
+                    selected_account_option = st.selectbox(
+                        "Nr konta",
+                        options=account_options,
+                        index=default_account_index,
+                        key="edit_account_selectbox"
+                    )
+                    
+                    if selected_account_option:
+                        edited_account = selected_account_option.split(' - ')[0]
+                    else:
+                        edited_account = ""
+                else:
+                    edited_account = st.text_input(
+                        "Nr konta",
+                        value=str(editing_comment.get('Account No_', '')),
+                        key="edit_account_input"
+                    )
                 
-                # Selectbox do wyboru konta
-                selected_account = st.selectbox(
-                    "Wybierz konto",
-                    options=account_options,
-                    index=default_index,
-                    key=f"account_selectbox_{st.session_state.selectbox_key_suffix}"
+                # Zadanie - jako text input (wymaga ZUSL code dla selectbox)
+                edited_task = st.text_input(
+                    "Zadanie",
+                    value=str(editing_comment.get('Wymiar10', '')),
+                    key="edit_task_input"
+                )
+            
+            # Wymiary - sekcja z własnymi kolumnami
+            st.markdown("**Wymiary**")
+            edit_dim_col1, edit_dim_col2 = st.columns(2)
+            
+            with edit_dim_col1:
+                # Działalność - z selectbox
+                dzialalnosci = get_dimensions(company, "1DZIAL")
+                if dzialalnosci:
+                    dzialalnosci_options = [f"{dim['Code']} - {dim['Name']}" for dim in dzialalnosci]
+                    dzialalnosci_options.insert(0, "")
+                    
+                    current_dzialanosc = str(editing_comment.get('Wymiar1', ''))
+                    default_dzialanosc_index = 0
+                    for i, option in enumerate(dzialalnosci_options):
+                        if option.startswith(current_dzialanosc + " -"):
+                            default_dzialanosc_index = i
+                            break
+                    
+                    selected_dzialanosc_option = st.selectbox(
+                        "Działalność",
+                        options=dzialalnosci_options,
+                        index=default_dzialanosc_index,
+                        key="edit_dzialanosc_selectbox"
+                    )
+                    edited_dzialanosc = selected_dzialanosc_option.split(' - ')[0] if selected_dzialanosc_option else ""
+                else:
+                    edited_dzialanosc = st.text_input(
+                        "Działalność",
+                        value=str(editing_comment.get('Wymiar1', '')),
+                        key="edit_dzialanosc_input"
+                    )
+                
+                # Rejon - z selectbox
+                rejony = get_dimensions(company, "1REJON")
+                if rejony:
+                    rejony_options = [f"{dim['Code']} - {dim['Name']}" for dim in rejony]
+                    rejony_options.insert(0, "")
+                    
+                    current_rejon = str(editing_comment.get('Wymiar2', ''))
+                    default_rejon_index = 0
+                    for i, option in enumerate(rejony_options):
+                        if option.startswith(current_rejon + " -"):
+                            default_rejon_index = i
+                            break
+                    
+                    selected_rejon_option = st.selectbox(
+                        "Rejon",
+                        options=rejony_options,
+                        index=default_rejon_index,
+                        key="edit_rejon_selectbox"
+                    )
+                    edited_rejon = selected_rejon_option.split(' - ')[0] if selected_rejon_option else ""
+                else:
+                    edited_rejon = st.text_input(
+                        "Rejon",
+                        value=str(editing_comment.get('Wymiar2', '')),
+                        key="edit_rejon_input"
+                    )
+                
+                # Zadanie usługowe - z selectbox
+                zusl = get_dimensions(company, "Z.USL")
+                if zusl:
+                    zusl_options = [f"{dim['Code']} - {dim['Name']}" for dim in zusl]
+                    zusl_options.insert(0, "")
+                    
+                    current_zusl = str(editing_comment.get('Wymiar3', ''))
+                    default_zusl_index = 0
+                    for i, option in enumerate(zusl_options):
+                        if option.startswith(current_zusl + " -"):
+                            default_zusl_index = i
+                            break
+                    
+                    selected_zusl_option = st.selectbox(
+                        "Zadanie usługowe",
+                        options=zusl_options,
+                        index=default_zusl_index,
+                        key="edit_zusl_selectbox"
+                    )
+                    edited_zusl = selected_zusl_option.split(' - ')[0] if selected_zusl_option else ""
+                else:
+                    edited_zusl = st.text_input(
+                        "Zadanie usługowe",
+                        value=str(editing_comment.get('Wymiar3', '')),
+                        key="edit_zusl_input"
+                    )
+                
+                # Nr poz. budż. inwest. - z selectbox
+                nr_poz_budz_inwest = get_dimensions(company, "NR POZ.BUDŻ.INWEST.")
+                if nr_poz_budz_inwest:
+                    nr_poz_budz_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in nr_poz_budz_inwest]
+                    nr_poz_budz_inwest_options.insert(0, "")
+                    
+                    current_nr_poz_budz_inwest = str(editing_comment.get('Wymiar5', ''))
+                    default_nr_poz_budz_inwest_index = 0
+                    for i, option in enumerate(nr_poz_budz_inwest_options):
+                        if option.startswith(current_nr_poz_budz_inwest + " -"):
+                            default_nr_poz_budz_inwest_index = i
+                            break
+                    
+                    selected_nr_poz_budz_inwest_option = st.selectbox(
+                        "Nr poz. budż. inwest.",
+                        options=nr_poz_budz_inwest_options,
+                        index=default_nr_poz_budz_inwest_index,
+                        key="edit_nr_poz_budz_inwest_selectbox"
+                    )
+                    edited_nr_poz_budz_inwest = selected_nr_poz_budz_inwest_option.split(' - ')[0] if selected_nr_poz_budz_inwest_option else ""
+                else:
+                    edited_nr_poz_budz_inwest = st.text_input(
+                        "Nr poz. budż. inwest.",
+                        value=str(editing_comment.get('Wymiar5', '')),
+                        key="edit_nr_poz_budz_inwest_input"
+                    )
+                
+            with edit_dim_col2:
+                # Zasoby - z selectbox
+                zasoby = get_dimensions(company, "ZASOBY")
+                if zasoby:
+                    zasoby_options = [f"{dim['Code']} - {dim['Name']}" for dim in zasoby]
+                    zasoby_options.insert(0, "")
+                    
+                    current_zasoby = str(editing_comment.get('Wymiar4', ''))
+                    default_zasoby_index = 0
+                    for i, option in enumerate(zasoby_options):
+                        if option.startswith(current_zasoby + " -"):
+                            default_zasoby_index = i
+                            break
+                    
+                    selected_zasoby_option = st.selectbox(
+                        "Zasoby",
+                        options=zasoby_options,
+                        index=default_zasoby_index,
+                        key="edit_zasoby_selectbox"
+                    )
+                    edited_zasoby = selected_zasoby_option.split(' - ')[0] if selected_zasoby_option else ""
+                else:
+                    edited_zasoby = st.text_input(
+                        "Zasoby",
+                        value=str(editing_comment.get('Wymiar4', '')),
+                        key="edit_zasoby_input"
+                    )
+                
+                # Zespół 5 - z selectbox
+                zespol5 = get_dimensions(company, "ZESPOL5")
+                if zespol5:
+                    zespol5_options = [f"{dim['Code']} - {dim['Name']}" for dim in zespol5]
+                    zespol5_options.insert(0, "")
+                    
+                    current_zespol5 = str(editing_comment.get('Wymiar6', ''))
+                    default_zespol5_index = 0
+                    for i, option in enumerate(zespol5_options):
+                        if option.startswith(current_zespol5 + " -"):
+                            default_zespol5_index = i
+                            break
+                    
+                    selected_zespol5_option = st.selectbox(
+                        "Zespół 5",
+                        options=zespol5_options,
+                        index=default_zespol5_index,
+                        key="edit_zespol5_selectbox"
+                    )
+                    edited_zespol5 = selected_zespol5_option.split(' - ')[0] if selected_zespol5_option else ""
+                else:
+                    edited_zespol5 = st.text_input(
+                        "Zespół 5",
+                        value=str(editing_comment.get('Wymiar6', '')),
+                        key="edit_zespol5_input"
+                    )
+                
+                # Grupa kapitałowa - z selectbox
+                grupa_kapit = get_dimensions(company, "GR.KAPIT")
+                if grupa_kapit:
+                    grupa_kapit_options = [f"{dim['Code']} - {dim['Name']}" for dim in grupa_kapit]
+                    grupa_kapit_options.insert(0, "")
+                    
+                    current_grupa_kapit = str(editing_comment.get('Wymiar7', ''))
+                    default_grupa_kapit_index = 0
+                    for i, option in enumerate(grupa_kapit_options):
+                        if option.startswith(current_grupa_kapit + " -"):
+                            default_grupa_kapit_index = i
+                            break
+                    
+                    selected_grupa_kapit_option = st.selectbox(
+                        "Grupa kapitałowa",
+                        options=grupa_kapit_options,
+                        index=default_grupa_kapit_index,
+                        key="edit_grupa_kapit_selectbox"
+                    )
+                    edited_grupa_kapit = selected_grupa_kapit_option.split(' - ')[0] if selected_grupa_kapit_option else ""
+                else:
+                    edited_grupa_kapit = st.text_input(
+                        "Grupa kapitałowa",
+                        value=str(editing_comment.get('Wymiar7', '')),
+                        key="edit_grupa_kapit_input"
+                    )
+                
+                # Rodzaj inwestycji - z selectbox
+                rodzaj_inwestycji = get_dimensions(company, "ROD.INWEST")
+                if rodzaj_inwestycji:
+                    rodzaj_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in rodzaj_inwestycji]
+                    rodzaj_inwest_options.insert(0, "")
+                    
+                    current_rodzaj_inwest = str(editing_comment.get('Wymiar8', ''))
+                    default_rodzaj_inwest_index = 0
+                    for i, option in enumerate(rodzaj_inwest_options):
+                        if option.startswith(current_rodzaj_inwest + " -"):
+                            default_rodzaj_inwest_index = i
+                            break
+                    
+                    selected_rodzaj_inwest_option = st.selectbox(
+                        "Rodzaj inwestycji",
+                        options=rodzaj_inwest_options,
+                        index=default_rodzaj_inwest_index,
+                        key="edit_rodzaj_inwest_selectbox"
+                    )
+                    edited_rodzaj_inwest = selected_rodzaj_inwest_option.split(' - ')[0] if selected_rodzaj_inwest_option else ""
+                else:
+                    edited_rodzaj_inwest = st.text_input(
+                        "Rodzaj inwestycji",
+                        value=str(editing_comment.get('Wymiar8', '')),
+                        key="edit_rodzaj_inwest_input"
+                    )
+            
+            # Separator przed przyciskami
+            st.markdown("---")
+            
+            # Przyciski akcji
+            col1, col2 = st.columns(2)
+            with col1:
+                save_button = st.form_submit_button("Zapisz zmiany")
+            with col2:
+                cancel_button = st.form_submit_button("Anuluj")
+            
+            if save_button and edited_comment_text.strip():
+                # Przygotowanie danych do aktualizacji
+                comment_data = {
+                    'comment': edited_comment_text.strip(),
+                    'amount': edited_amount.strip(),
+                    'budget_pos': edited_budget_pos.strip(),
+                    'account': edited_account.strip(),
+                    'task': edited_task.strip(),
+                    'dzialanosc': edited_dzialanosc.strip(),
+                    'rejon': edited_rejon.strip(),
+                    'zusl': edited_zusl.strip(),
+                    'zasoby': edited_zasoby.strip(),
+                    'nr_poz_budz_inwest': edited_nr_poz_budz_inwest.strip(),
+                    'zespol5': edited_zespol5.strip(),
+                    'grupa_kapit': edited_grupa_kapit.strip(),
+                    'rodzaj_inwest': edited_rodzaj_inwest.strip()
+                }
+                
+                # Wywołanie funkcji aktualizacji komentarza
+                result = update_comment(
+                    invoice_id, 
+                    company, 
+                    str(editing_comment['Line No_']), 
+                    comment_data,
+                    st.session_state.username
                 )
                 
-                # Dodanie przycisku "Ustaw konto" obok wyboru konta
-                set_account_button = st.form_submit_button("Ustaw konto")
-                
-                # Aktualizacja stanu sesji
-                if selected_account:
-                    selected_account_no = selected_account.split(' - ')[0]
-                    st.session_state.nowy_komentarz['Nr_konta'] = selected_account_no
-                
-                # Obsługa przycisku "Ustaw konto"
-                if set_account_button:
-                    # Wymuszenie odświeżenia strony
+                if result.get("status") == "success":
+                    st.success("Komentarz został zaktualizowany.")
+                    st.session_state.edit_mode = False
+                    if 'editing_comment' in st.session_state:
+                        del st.session_state.editing_comment
                     st.rerun()
-        
-        # Wymiary
-        col_dim1, col_dim2 = st.columns(2)
-        
-        with col_dim1:
-            # Działalności
-            dzialalnosci = get_dimensions(company, "1DZIAL")
-            if dzialalnosci:
-                dzialalnosci_options = [f"{dim['Code']} - {dim['Name']}" for dim in dzialalnosci]
-                dzialalnosci_options.insert(0, "")
-                selected_dzialalnosc = st.selectbox(
-                    "Działalność", 
-                    options=dzialalnosci_options,
-                    index=0,
-                    key=f"dzialalnosc_selectbox_{st.session_state.selectbox_key_suffix}"
-                )
-                if selected_dzialalnosc:
-                    st.session_state.nowy_komentarz['W1_Dzialnosc'] = selected_dzialalnosc.split(' - ')[0]
+                else:
+                    st.error(f"Błąd podczas aktualizacji komentarza: {result.get('message', 'Nieznany błąd')}")
             
-            # Rejony
-            rejony = get_dimensions(company, "1REJON")
-            if rejony:
-                rejony_options = [f"{dim['Code']} - {dim['Name']}" for dim in rejony]
-                rejony_options.insert(0, "")
-                selected_rejon = st.selectbox(
-                    "Rejon", 
-                    options=rejony_options,
-                    index=0,
-                    key=f"rejon_selectbox_{st.session_state.selectbox_key_suffix}"
-                )
-                if selected_rejon:
-                    st.session_state.nowy_komentarz['W2_Rejon'] = selected_rejon.split(' - ')[0]
+            elif save_button and not edited_comment_text.strip():
+                st.error("Treść komentarza nie może być pusta.")
+                
+            if cancel_button:
+                st.session_state.edit_mode = False
+                if 'editing_comment' in st.session_state:
+                    del st.session_state.editing_comment
+                st.rerun()
+    
+    # Formularz do dodawania nowych komentarzy poniżej listy
+    if not st.session_state.get('edit_mode', False):
+        st.subheader("Dodaj nowy komentarz")
+    
+    # Formularz do dodawania komentarzy - tylko gdy nie jesteśmy w trybie edycji
+    if not st.session_state.get('edit_mode', False):
+        with st.form("comment_form"):
+            # Ukryte pole do przechowywania poprzedniej wartości pozycji budżetowej
+            if 'previous_budget_position' not in st.session_state:
+                st.session_state.previous_budget_position = ""
             
-            # Zadania usługowe
-            zusl = get_dimensions(company, "Z.USL")
-            if zusl:
-                zusl_options = [f"{dim['Code']} - {dim['Name']}" for dim in zusl]
-                zusl_options.insert(0, "")
-                selected_zusl = st.selectbox(
-                    "Zadanie usługowe", 
-                    options=zusl_options,
-                    index=0,
-                    key=f"zusl_selectbox_{st.session_state.selectbox_key_suffix}"
-                )
-                if selected_zusl:
-                    st.session_state.nowy_komentarz['W3_ZUSL'] = selected_zusl.split(' - ')[0]
+            # Pole tekstowe komentarza - pełna szerokość
+            comment_text = st.text_area(
+                "Treść komentarza",
+                value=st.session_state.nowy_komentarz.get('Komentarz', ''), 
+                height=150,
+                key=f"comment_text_input_{st.session_state.selectbox_key_suffix}"
+            )
+            st.session_state.nowy_komentarz['Komentarz'] = comment_text
 
-            # Pozycje budżetowe inwestycyjne
-            nr_poz_budz_inwest = get_dimensions(company, "NR POZ.BUDŻ.INWEST.")
-            if nr_poz_budz_inwest:
-                nr_poz_budz_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in nr_poz_budz_inwest]
-                nr_poz_budz_inwest_options.insert(0, "")
-                selected_nr_poz_budz_inwest = st.selectbox(
-                    "Nr poz. budż. inwest.", 
-                    options=nr_poz_budz_inwest_options,
-                    index=0,
-                    key=f"nr_poz_budz_inwest_selectbox_{st.session_state.selectbox_key_suffix}"
+            # Organizacja pól w dwóch kolumnach
+            col_left, col_right = st.columns(2)
+            
+            with col_left:
+                # Pole kwota netto z kalkulatorem
+                kwota_netto_input = st.text_input(
+                    "Kwota netto (pole obliczeniowe)", 
+                    help="Wprowadź wartość liczbową lub działanie matematyczne (np. 2+2-1). Przecinek zostanie automatycznie zamieniony na kropkę. Naciśnij Enter aby obliczyć działanie.",
+                    value=st.session_state.nowy_komentarz.get('Kwota_netto', ''),
+                    key=f"kwota_netto_input_{st.session_state.selectbox_key_suffix}"
                 )
-                if selected_nr_poz_budz_inwest:
-                    st.session_state.nowy_komentarz['W6_Nr_poz_budz_inw'] = selected_nr_poz_budz_inwest.split(' - ')[0]
+                
+                # Walidacja i konwersja kwoty netto z obsługą działań matematycznych
+                kwota_netto = ""
+                if kwota_netto_input:
+                    kwota_netto_input = kwota_netto_input.replace(',', '.')
+                    
+                    # Sprawdzenie czy wprowadzono działanie matematyczne
+                    if any(op in kwota_netto_input for op in ['+', '-', '*', '/', '(', ')']):
+                        try:
+                            # Bezpieczne obliczenie wyrażenia matematycznego
+                            # Usunięcie białych znaków i sprawdzenie dozwolonych znaków
+                            cleaned_input = ''.join(kwota_netto_input.split())
+                            allowed_chars = set('0123456789+-*/().')
+                            if set(cleaned_input).issubset(allowed_chars):
+                                result = eval(cleaned_input)
+                                kwota_netto = f"{result:.2f}"
+                                st.session_state.nowy_komentarz['Kwota_netto'] = kwota_netto
+                                st.info(f"Obliczone: {kwota_netto_input} = {kwota_netto}")
+                            else:
+                                st.error("Działanie zawiera niedozwolone znaki. Używaj tylko cyfr i operatorów: + - * / ( )")
+                                kwota_netto = ""
+                        except (ValueError, SyntaxError, ZeroDivisionError):
+                            st.error("Nieprawidłowe działanie matematyczne. Sprawdź składnię.")
+                            kwota_netto = ""
+                    else:
+                        # Standardowa walidacja dla pojedynczej liczby
+                        try:
+                            kwota_float = float(kwota_netto_input)
+                            kwota_netto = f"{kwota_float:.2f}"
+                            st.session_state.nowy_komentarz['Kwota_netto'] = kwota_netto
+                        except ValueError:
+                            st.error("Wprowadzona wartość nie jest liczbą ani prawidłowym działaniem matematycznym.")
+                            kwota_netto = ""
+
+                # Pobieranie pozycji budżetowych
+                budget_positions = get_budget_positions(company)
+                if budget_positions:
+                    # Przygotowanie opcji do selectboxa
+                    budget_options = []
+                    budget_codes_map = {}
+                    account_no_map = {}
+                
+                for position in budget_positions:
+                    code = position.get('Code', '')
+                    account_no = position.get('Account No_', '')
+                    if code:
+                        display_text = f"{code} - {account_no}" if account_no else code
+                        budget_options.append(display_text)
+                        budget_codes_map[display_text] = code
+                        account_no_map[code] = account_no
+            
+                # Dodanie pustej opcji na początku
+                budget_options.insert(0, "")
+                
+                # Selectbox do wyboru pozycji budżetowej
+                selected_option = st.selectbox(
+                    "Wybierz pozycję budżetową",
+                    options=budget_options,
+                    index=0,
+                    key=f"budget_position_selectbox_{st.session_state.selectbox_key_suffix}"
+                )
+                
+                # Pobieranie numeru konta dla wybranej pozycji budżetowej
+                if selected_option:
+                    selected_code = budget_codes_map.get(selected_option, '')
+                    account_no = account_no_map.get(selected_code, '')
+                    
+                    # Aktualizacja stanu sesji
+                    st.session_state.nowy_komentarz['Pozycja_budzetowa'] = selected_code
+                    
+                    # Automatyczne ustawienie numeru konta
+                    if account_no:
+                        st.session_state.nowy_komentarz['Nr_konta'] = account_no
+                        
+                    # Sprawdzenie, czy pozycja budżetowa się zmieniła
+                    if selected_code != st.session_state.previous_budget_position:
+                        st.session_state.previous_budget_position = selected_code
+                        st.info("Wybrano nową pozycję budżetową. Kliknij 'Zastosuj zmiany', aby zaktualizować numer konta.")
+                
+            with col_right:
+                # Pobieranie wszystkich kont
+                accounts = get_accounts(company)
+                if accounts:
+                    # Tworzenie DataFrame z kontami
+                    accounts_df = pd.DataFrame(accounts)
+                    display_columns = ['No_', 'Name', 'Search Name']
+                    display_columns = [col for col in display_columns if col in accounts_df.columns]
+                    column_names = {
+                        'No_': 'Numer konta',
+                        'Name': 'Nazwa',
+                        'Search Name': 'Nazwa wyszukiwania'
+                    }
+                    accounts_df_display = accounts_df[display_columns].rename(columns=column_names)
+                    
+                    # Przygotowanie opcji do selectboxa
+                    account_options = [f"{row['No_']} - {row['Name']}" for _, row in accounts_df.iterrows()]
+                    account_options.insert(0, "")  # Dodanie pustej opcji na początku
+                    
+                    # Znalezienie domyślnej wartości dla selectboxa kont
+                    default_index = 0
+                    current_account_no = st.session_state.nowy_komentarz.get('Nr_konta', '')
+                    
+                    if current_account_no:
+                        for i, option in enumerate(account_options):
+                            if option.startswith(current_account_no + " -"):
+                                default_index = i
+                                break
+                    
+                    # Selectbox do wyboru konta
+                    selected_account = st.selectbox(
+                        "Wybierz konto",
+                        options=account_options,
+                        index=default_index,
+                        key=f"account_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    
+                    # Dodanie przycisku "Ustaw konto" obok wyboru konta
+                    set_account_button = st.form_submit_button("Ustaw konto")
+                    
+                    # Aktualizacja stanu sesji
+                    if selected_account:
+                        selected_account_no = selected_account.split(' - ')[0]
+                        st.session_state.nowy_komentarz['Nr_konta'] = selected_account_no
+                    
+                    # Obsługa przycisku "Ustaw konto"
+                    if set_account_button:
+                        # Wymuszenie odświeżenia strony
+                        st.rerun()
+            
+            # Wymiary - sekcja poza kolumnami głównymi
+            st.markdown("### Wymiary")
+            col_dim1, col_dim2 = st.columns(2)
+        
+            with col_dim1:
+                # Działalności
+                dzialalnosci = get_dimensions(company, "1DZIAL")
+                if dzialalnosci:
+                    dzialalnosci_options = [f"{dim['Code']} - {dim['Name']}" for dim in dzialalnosci]
+                    dzialalnosci_options.insert(0, "")
+                    selected_dzialalnosc = st.selectbox(
+                        "Działalność", 
+                        options=dzialalnosci_options,
+                        index=0,
+                        key=f"dzialalnosc_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    if selected_dzialalnosc:
+                        st.session_state.nowy_komentarz['W1_Dzialnosc'] = selected_dzialalnosc.split(' - ')[0]
+                
+                # Rejony
+                rejony = get_dimensions(company, "1REJON")
+                if rejony:
+                    rejony_options = [f"{dim['Code']} - {dim['Name']}" for dim in rejony]
+                    rejony_options.insert(0, "")
+                    selected_rejon = st.selectbox(
+                        "Rejon", 
+                        options=rejony_options,
+                        index=0,
+                        key=f"rejon_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    if selected_rejon:
+                        st.session_state.nowy_komentarz['W2_Rejon'] = selected_rejon.split(' - ')[0]
+                
+                # Zadania usługowe
+                zusl = get_dimensions(company, "Z.USL")
+                if zusl:
+                    zusl_options = [f"{dim['Code']} - {dim['Name']}" for dim in zusl]
+                    zusl_options.insert(0, "")
+                    selected_zusl = st.selectbox(
+                        "Zadanie usługowe", 
+                        options=zusl_options,
+                        index=0,
+                        key=f"zusl_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    if selected_zusl:
+                        st.session_state.nowy_komentarz['W3_ZUSL'] = selected_zusl.split(' - ')[0]
+
+                # Pozycje budżetowe inwestycyjne
+                nr_poz_budz_inwest = get_dimensions(company, "NR POZ.BUDŻ.INWEST.")
+                if nr_poz_budz_inwest:
+                    nr_poz_budz_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in nr_poz_budz_inwest]
+                    nr_poz_budz_inwest_options.insert(0, "")
+                    selected_nr_poz_budz_inwest = st.selectbox(
+                        "Nr poz. budż. inwest.", 
+                        options=nr_poz_budz_inwest_options,
+                        index=0,
+                        key=f"nr_poz_budz_inwest_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    if selected_nr_poz_budz_inwest:
+                        st.session_state.nowy_komentarz['W6_Nr_poz_budz_inw'] = selected_nr_poz_budz_inwest.split(' - ')[0]
         
         with col_dim2:
             # Zasoby
@@ -563,38 +965,41 @@ def display_invoice_comments(invoice_id: str, company: str):
                 )
                 if selected_zadanie_task:
                     st.session_state.nowy_komentarz['Zadanie'] = selected_zadanie_task.split(' - ')[0]
-        
-        # Przycisk do dodawania komentarza
-        submit_button = st.form_submit_button("Dodaj komentarz")
-        
-        if submit_button:
-            # Tworzenie nowego komentarza z danych w stanie sesji
-            new_comment = Comment(
-                document_no=invoice_id,
-                company=company,
-                comment=st.session_state.nowy_komentarz.get('Komentarz', ''),
-                nr_poz_budz=st.session_state.nowy_komentarz.get('Pozycja_budzetowa', ''),
-                nr_konta=st.session_state.nowy_komentarz.get('Nr_konta', ''),
-                kwota_netto=st.session_state.nowy_komentarz.get('Kwota_netto', ''),
-                dzialalnosc=st.session_state.nowy_komentarz.get('W1_Dzialnosc', ''),
-                rejon=st.session_state.nowy_komentarz.get('W2_Rejon', ''),
-                zusl=st.session_state.nowy_komentarz.get('W3_ZUSL', ''),
-                zasoby=st.session_state.nowy_komentarz.get('W5_Zasoby', ''),
-                nr_poz_budz_inwest=st.session_state.nowy_komentarz.get('W6_Nr_poz_budz_inw', ''),
-                zespol5=st.session_state.nowy_komentarz.get('W7_Zespol5', ''),
-                grupa_kapit=st.session_state.nowy_komentarz.get('W8_Gr_kapit', ''),
-                rodzaj_inwestycji=st.session_state.nowy_komentarz.get('W9_Rodzaj_inw', ''),
-                inform_kw=st.session_state.nowy_komentarz.get('W10_InformKW', '')
-            )
             
-            # Dodawanie komentarza do bazy danych
-            success = add_comment(new_comment)
-            if success:
-                st.success("Komentarz został dodany.")
-                # Ustawienie flagi resetowania formularza
-                st.session_state.reset_comment_form = True
-                st.rerun()
-            else:
-                st.error("Wystąpił błąd podczas dodawania komentarza.")
+            # Separator przed przyciskiem
+            st.markdown("---")
+            
+            # Przycisk do dodawania komentarza - na całej szerokości
+            submit_button = st.form_submit_button("Dodaj komentarz", use_container_width=True)
+            
+            if submit_button:
+                # Tworzenie nowego komentarza z danych w stanie sesji
+                new_comment = Comment(
+                    document_no=invoice_id,
+                    company=company,
+                    comment=st.session_state.nowy_komentarz.get('Komentarz', ''),
+                    nr_poz_budz=st.session_state.nowy_komentarz.get('Pozycja_budzetowa', ''),
+                    nr_konta=st.session_state.nowy_komentarz.get('Nr_konta', ''),
+                    kwota_netto=st.session_state.nowy_komentarz.get('Kwota_netto', ''),
+                    dzialalnosc=st.session_state.nowy_komentarz.get('W1_Dzialnosc', ''),
+                    rejon=st.session_state.nowy_komentarz.get('W2_Rejon', ''),
+                    zusl=st.session_state.nowy_komentarz.get('W3_ZUSL', ''),
+                    zasoby=st.session_state.nowy_komentarz.get('W5_Zasoby', ''),
+                    nr_poz_budz_inwest=st.session_state.nowy_komentarz.get('W6_Nr_poz_budz_inw', ''),
+                    zespol5=st.session_state.nowy_komentarz.get('W7_Zespol5', ''),
+                    grupa_kapit=st.session_state.nowy_komentarz.get('W8_Gr_kapit', ''),
+                    rodzaj_inwestycji=st.session_state.nowy_komentarz.get('W9_Rodzaj_inw', ''),
+                    inform_kw=st.session_state.nowy_komentarz.get('W10_InformKW', '')
+                )
+                
+                # Dodawanie komentarza do bazy danych
+                success = add_comment(new_comment)
+                if success:
+                    st.success("Komentarz został dodany.")
+                    # Ustawienie flagi resetowania formularza
+                    st.session_state.reset_comment_form = True
+                    st.rerun()
+                else:
+                    st.error("Wystąpił błąd podczas dodawania komentarza.")
         
         

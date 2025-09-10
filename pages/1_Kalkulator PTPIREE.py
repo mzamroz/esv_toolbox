@@ -255,10 +255,16 @@ if st.session_state.file_profiles:
             if not all_profiles_data:
                 continue
             profiles_df = pd.DataFrame(all_profiles_data)
-            writer.sheets[group_name] = writer.book.create_sheet(group_name)
-            writer.sheets[group_name].cell(row=1, column=1, value=f"Profile plików PTPiREE - {group_name}")
+            # Sortowanie po kolumnie "Data profilu"
+            # Konwersja kolumny na datetime
+            profiles_df["Data profilu"] = pd.to_datetime(profiles_df["Data profilu"], format="%d-%m-%Y", errors="coerce")
+            profiles_df = profiles_df.sort_values(by="Data profilu", ascending=True, na_position='last')
+            # Zamiana na tekstowy format daty
+            profiles_df["Data profilu"] = profiles_df["Data profilu"].dt.strftime("%d-%m-%Y")
+
             profiles_df.to_excel(writer, sheet_name=group_name, index=False, startrow=2)
             ws = writer.sheets[group_name]
+            ws.cell(row=1, column=1, value=f"Profile plików PTPiREE - {group_name}")
             for row in range(4, len(profiles_df) + 4):
                 for col in range(2, max_length + 3):
                     cell = ws.cell(row=row, column=col)
@@ -282,8 +288,10 @@ if st.session_state.file_profiles:
     if st.button("Wyczyść wszystkie dane", type="primary"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        st.session_state.uploader_key = st.session_state.get('uploader_key', 0) + 1  # wymuś zmianę key
+        # Zwiększ klucz uploadu, wyczyść file_profiles i uploaded_files
+        st.session_state.uploader_key = st.session_state.get('uploader_key', 0) + 1
         st.session_state.file_profiles = {}
+        st.session_state[f'uploader_{st.session_state.uploader_key}'] = []
         st.rerun()
 # Wyświetl stopkę
 display_footer()

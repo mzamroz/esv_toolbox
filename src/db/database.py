@@ -554,14 +554,15 @@ def add_comment(comment: Comment) -> Dict[str, str]:
     finally:
         conn.close()
 
-def update_comment(document_no: str, company: str, comment: str, user: str) -> Dict[str, str]:
+def update_comment(document_no: str, company: str, line_no: str, comment_data: Dict[str, str], user: str) -> Dict[str, str]:
     """
-    Aktualizuje komentarz.
+    Aktualizuje komentarz - wszystkie pola.
     
     Args:
         document_no: Numer dokumentu
         company: Nazwa firmy
-        comment: Treść komentarza
+        line_no: Numer linii komentarza
+        comment_data: Słownik z danymi komentarza do aktualizacji
         user: Nazwa użytkownika
         
     Returns:
@@ -574,15 +575,53 @@ def update_comment(document_no: str, company: str, comment: str, user: str) -> D
     try:
         company = company.upper()
         user = user.upper()
-        SQL_QUERY = f'''
+        
+        # Przygotowanie wartości z escapowaniem apostrofów
+        comment_text = comment_data.get('comment', '').replace("'", "''")
+        amount = comment_data.get('amount', '')
+        budget_pos = comment_data.get('budget_pos', '').replace("'", "''")
+        account = comment_data.get('account', '').replace("'", "''")
+        task = comment_data.get('task', '').replace("'", "''")
+        dzialanosc = comment_data.get('dzialanosc', '').replace("'", "''")
+        rejon = comment_data.get('rejon', '').replace("'", "''")
+        zusl = comment_data.get('zusl', '').replace("'", "''")
+        zasoby = comment_data.get('zasoby', '').replace("'", "''")
+        nr_poz_budz_inwest = comment_data.get('nr_poz_budz_inwest', '').replace("'", "''")
+        zespol5 = comment_data.get('zespol5', '').replace("'", "''")
+        grupa_kapit = comment_data.get('grupa_kapit', '').replace("'", "''")
+        rodzaj_inwest = comment_data.get('rodzaj_inwest', '').replace("'", "''")
+        
+        # Aktualizacja pierwszej tabeli (podstawowe informacje o komentarzu)
+        SQL_QUERY_1 = f'''
             UPDATE [dbo].[{company}$Comment Line$437dbf0e-84ff-417a-965d-ed2bb9650972]
-            SET [Comment] = '{comment}'
+            SET [Comment] = '{comment_text}'
             ,[Date] = GETDATE()
             ,[Code] = 'ESV\\{user}'
-            WHERE [No_] = '{document_no}'
+            WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
+        
+        # Aktualizacja drugiej tabeli (dodatkowe pola)
+        SQL_QUERY_2 = f'''
+            UPDATE [dbo].[{company}$Comment Line$b64d2b42-739a-4647-b44a-fd892d64fff6]
+            SET [Amount] = '{amount}'
+            ,[Pozycja budżetowa] = '{budget_pos}'
+            ,[Account No_] = '{account}'
+            ,[Wymiar1] = '{dzialanosc}'
+            ,[Wymiar2] = '{rejon}'
+            ,[Wymiar3] = '{zusl}'
+            ,[Wymiar4] = '{zasoby}'
+            ,[Wymiar5] = '{nr_poz_budz_inwest}'
+            ,[Wymiar6] = '{zespol5}'
+            ,[Wymiar7] = '{grupa_kapit}'
+            ,[Wymiar8] = '{rodzaj_inwest}'
+            ,[Wymiar10] = '{task}'
+            WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
+        '''
+        
         cursor = conn.cursor()
-        cursor.execute(SQL_QUERY)
+        # Wykonanie obu zapytań
+        cursor.execute(SQL_QUERY_1)
+        cursor.execute(SQL_QUERY_2)
         conn.commit()
         return {"status": "success"}
     except Exception as e:
