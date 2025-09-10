@@ -488,7 +488,7 @@ def add_comment(comment: Comment, user: str) -> Dict[str, str]:
             ,'{comment.document_no}'
             ,@LineNo
             ,Convert(Date,GETDATE())
-            ,'ESV\\{user}'
+            ,''
             ,'{comment.comment}'
             ,default
             ,GETDATE()
@@ -597,7 +597,7 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
             UPDATE [dbo].[{company}$Comment Line$437dbf0e-84ff-417a-965d-ed2bb9650972]
             SET [Comment] = '{comment_text}'
             ,[Date] = GETDATE()
-            ,[Code] = 'ESV\\{user}'
+            ,[Code] = ''
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
         

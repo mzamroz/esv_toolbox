@@ -391,68 +391,8 @@ def display_invoice_comments(invoice_id: str, company: str):
                         key="edit_account_input"
                     )
                 
-                # Zadanie - z selectbox (zamiast text input)
-                # Pobieranie zadań na podstawie ZUSL
-                current_zusl_code = str(editing_comment.get('Wymiar3', ''))
-                if current_zusl_code:
-                    zadanie_tasks = get_job_tasks(company, current_zusl_code)
-                    if zadanie_tasks:
-                        zadanie_options = [f"{task['Job Task No_']} - {task['Description']}" for task in zadanie_tasks]
-                        zadanie_options.insert(0, "")
-                        
-                        # Znajdź aktualną wartość
-                        current_zadanie = str(editing_comment.get('Wymiar10', ''))
-                        default_zadanie_index = 0
-                        for i, option in enumerate(zadanie_options):
-                            if option.startswith(current_zadanie + " -"):
-                                default_zadanie_index = i
-                                break
-                        
-                        edited_task = st.selectbox(
-                            "Zadanie",
-                            options=zadanie_options,
-                            index=default_zadanie_index,
-                            key="edit_task_selectbox"
-                        )
-                        
-                        if edited_task:
-                            edited_task = edited_task.split(' - ')[0]
-                        else:
-                            edited_task = ""
-                    else:
-                        edited_task = st.text_input(
-                            "Zadanie",
-                            value=str(editing_comment.get('Wymiar10', '')),
-                            key="edit_task_input"
-                        )
-                else:
-                    # Fallback do wymiarów JOB TASK jeśli brak ZUSL
-                    zadanie_task = get_dimensions(company, "JOB TASK")
-                    if zadanie_task:
-                        zadanie_task_options = [f"{dim['Code']} - {dim['Name']}" for dim in zadanie_task]
-                        zadanie_task_options.insert(0, "")
-                        
-                        # Znajdź aktualną wartość
-                        current_zadanie = str(editing_comment.get('Wymiar10', ''))
-                        default_zadanie_index = 0
-                        for i, option in enumerate(zadanie_task_options):
-                            if option.startswith(current_zadanie + " -"):
-                                default_zadanie_index = i
-                                break
-                        
-                        selected_zadanie_option = st.selectbox(
-                            "Zadanie",
-                            options=zadanie_task_options,
-                            index=default_zadanie_index,
-                            key="edit_zadanie_selectbox"
-                        )
-                        edited_task = selected_zadanie_option.split(' - ')[0] if selected_zadanie_option else ""
-                    else:
-                        edited_task = st.text_input(
-                            "Zadanie",
-                            value=str(editing_comment.get('Wymiar10', '')),
-                            key="edit_zadanie_input"
-                        )
+                # Zadanie - usunięte z edycji, tylko do odczytu
+                edited_task = str(editing_comment.get('Wymiar10', ''))
             
             # Wymiary - sekcja z własnymi kolumnami
             st.markdown("**Wymiary**")
@@ -623,7 +563,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                     )
                 
                 # Grupa kapitałowa - z selectbox
-                grupa_kapit = get_dimensions(company, "GR.KAPIT")
+                grupa_kapit = get_dimensions(company, "GR.KAPIT.")
                 if grupa_kapit:
                     grupa_kapit_options = [f"{dim['Code']} - {dim['Name']}" for dim in grupa_kapit]
                     grupa_kapit_options.insert(0, "")
@@ -643,38 +583,17 @@ def display_invoice_comments(invoice_id: str, company: str):
                     )
                     edited_grupa_kapit = selected_grupa_kapit_option.split(' - ')[0] if selected_grupa_kapit_option else ""
                 else:
-                    edited_grupa_kapit = st.text_input(
+                    # Brak wymiarów w bazie - tylko do odczytu
+                    st.text_input(
                         "Grupa kapitałowa",
                         value=str(editing_comment.get('Wymiar7', '')),
-                        key="edit_grupa_kapit_input"
+                        disabled=True,
+                        key="edit_grupa_kapit_readonly"
                     )
+                    edited_grupa_kapit = str(editing_comment.get('Wymiar7', ''))
                 
-                # Rodzaj inwestycji - z selectbox
-                rodzaj_inwestycji = get_dimensions(company, "ROD.INWEST")
-                if rodzaj_inwestycji:
-                    rodzaj_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in rodzaj_inwestycji]
-                    rodzaj_inwest_options.insert(0, "")
-                    
-                    current_rodzaj_inwest = str(editing_comment.get('Wymiar8', ''))
-                    default_rodzaj_inwest_index = 0
-                    for i, option in enumerate(rodzaj_inwest_options):
-                        if option.startswith(current_rodzaj_inwest + " -"):
-                            default_rodzaj_inwest_index = i
-                            break
-                    
-                    selected_rodzaj_inwest_option = st.selectbox(
-                        "Rodzaj inwestycji",
-                        options=rodzaj_inwest_options,
-                        index=default_rodzaj_inwest_index,
-                        key="edit_rodzaj_inwest_selectbox"
-                    )
-                    edited_rodzaj_inwest = selected_rodzaj_inwest_option.split(' - ')[0] if selected_rodzaj_inwest_option else ""
-                else:
-                    edited_rodzaj_inwest = st.text_input(
-                        "Rodzaj inwestycji",
-                        value=str(editing_comment.get('Wymiar8', '')),
-                        key="edit_rodzaj_inwest_input"
-                    )
+                # Rodzaj inwestycji - usunięte, nie można wprowadzać
+                edited_rodzaj_inwest = str(editing_comment.get('Wymiar8', ''))
                 
                 # INFORM. KW - z selectbox
                 inform_kw = get_dimensions(company, "INFORM. KW")
@@ -1037,19 +956,43 @@ def display_invoice_comments(invoice_id: str, company: str):
                 if selected_inform_kw:
                     st.session_state.nowy_komentarz['W10_InformKW'] = selected_inform_kw.split(' - ')[0]
             
-            # Zadania
-            zadanie_task = get_dimensions(company, "JOB TASK")
-            if zadanie_task:
-                zadanie_task_options = [f"{dim['Code']} - {dim['Name']}" for dim in zadanie_task]
-                zadanie_task_options.insert(0, "")
-                selected_zadanie_task = st.selectbox(
-                    "Zadanie", 
-                    options=zadanie_task_options,
-                    index=0,
-                    key=f"zadanie_task_selectbox_{st.session_state.selectbox_key_suffix}"
-                )
-                if selected_zadanie_task:
-                    st.session_state.nowy_komentarz['Zadanie'] = selected_zadanie_task.split(' - ')[0]
+            # Zadania - z logika ZUSL podobnie jak w edycji
+            current_zusl_code = st.session_state.nowy_komentarz.get('W3_ZUSL', '')
+            if current_zusl_code:
+                zadanie_tasks = get_job_tasks(company, current_zusl_code)
+                if zadanie_tasks:
+                    zadanie_options = [f"{task['Job Task No_']} - {task['Description']}" for task in zadanie_tasks]
+                    zadanie_options.insert(0, "")
+                    
+                    selected_zadanie_task = st.selectbox(
+                        "Zadanie",
+                        options=zadanie_options,
+                        index=0,
+                        key=f"zadanie_task_zusl_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    
+                    if selected_zadanie_task:
+                        st.session_state.nowy_komentarz['Zadanie'] = selected_zadanie_task.split(' - ')[0]
+                else:
+                    st.session_state.nowy_komentarz['Zadanie'] = st.text_input(
+                        "Zadanie",
+                        value="",
+                        key=f"zadanie_task_input_{st.session_state.selectbox_key_suffix}"
+                    )
+            else:
+                # Fallback do wymiarów JOB TASK jeśli brak ZUSL
+                zadanie_task = get_dimensions(company, "JOB TASK")
+                if zadanie_task:
+                    zadanie_task_options = [f"{dim['Code']} - {dim['Name']}" for dim in zadanie_task]
+                    zadanie_task_options.insert(0, "")
+                    selected_zadanie_task = st.selectbox(
+                        "Zadanie", 
+                        options=zadanie_task_options,
+                        index=0,
+                        key=f"zadanie_task_fallback_selectbox_{st.session_state.selectbox_key_suffix}"
+                    )
+                    if selected_zadanie_task:
+                        st.session_state.nowy_komentarz['Zadanie'] = selected_zadanie_task.split(' - ')[0]
             
             # Separator przed przyciskiem
             st.markdown("---")
