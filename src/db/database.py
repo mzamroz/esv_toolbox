@@ -533,13 +533,13 @@ def add_comment(comment: Comment) -> Dict[str, str]:
             ,\'{comment.dzialalnosc}\'
             ,\'{comment.rejon}\'
             ,\'{comment.zusl}\'
-            ,''
             ,\'{comment.zasoby}\'
             ,\'{comment.nr_poz_budz_inwest}\'
             ,\'{comment.zespol5}\'
             ,\'{comment.grupa_kapit}\'
             ,\'{comment.rodzaj_inwestycji}\'
             ,\'{comment.inform_kw}\'
+            ,\'{comment.zadanie_task}\'
             ,0
             )
         '''
@@ -614,6 +614,7 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
             ,[Wymiar6] = '{zespol5}'
             ,[Wymiar7] = '{grupa_kapit}'
             ,[Wymiar8] = '{rodzaj_inwest}'
+            ,[Wymiar9] = '{comment_data.get("inform_kw", "").replace("'", "''")}'
             ,[Wymiar10] = '{task}'
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''

@@ -3,6 +3,7 @@ Moduł zawierający komponenty UI do wyświetlania szczegółów faktury
 """
 import streamlit as st
 import pandas as pd
+import uuid
 from datetime import datetime
 from src.models.comment import Comment
 from src.db.database import (
@@ -390,12 +391,68 @@ def display_invoice_comments(invoice_id: str, company: str):
                         key="edit_account_input"
                     )
                 
-                # Zadanie - jako text input (wymaga ZUSL code dla selectbox)
-                edited_task = st.text_input(
-                    "Zadanie",
-                    value=str(editing_comment.get('Wymiar10', '')),
-                    key="edit_task_input"
-                )
+                # Zadanie - z selectbox (zamiast text input)
+                # Pobieranie zadań na podstawie ZUSL
+                current_zusl_code = str(editing_comment.get('Wymiar3', ''))
+                if current_zusl_code:
+                    zadanie_tasks = get_job_tasks(company, current_zusl_code)
+                    if zadanie_tasks:
+                        zadanie_options = [f"{task['Job Task No_']} - {task['Description']}" for task in zadanie_tasks]
+                        zadanie_options.insert(0, "")
+                        
+                        # Znajdź aktualną wartość
+                        current_zadanie = str(editing_comment.get('Wymiar10', ''))
+                        default_zadanie_index = 0
+                        for i, option in enumerate(zadanie_options):
+                            if option.startswith(current_zadanie + " -"):
+                                default_zadanie_index = i
+                                break
+                        
+                        edited_task = st.selectbox(
+                            "Zadanie",
+                            options=zadanie_options,
+                            index=default_zadanie_index,
+                            key="edit_task_selectbox"
+                        )
+                        
+                        if edited_task:
+                            edited_task = edited_task.split(' - ')[0]
+                        else:
+                            edited_task = ""
+                    else:
+                        edited_task = st.text_input(
+                            "Zadanie",
+                            value=str(editing_comment.get('Wymiar10', '')),
+                            key="edit_task_input"
+                        )
+                else:
+                    # Fallback do wymiarów JOB TASK jeśli brak ZUSL
+                    zadanie_task = get_dimensions(company, "JOB TASK")
+                    if zadanie_task:
+                        zadanie_task_options = [f"{dim['Code']} - {dim['Name']}" for dim in zadanie_task]
+                        zadanie_task_options.insert(0, "")
+                        
+                        # Znajdź aktualną wartość
+                        current_zadanie = str(editing_comment.get('Wymiar10', ''))
+                        default_zadanie_index = 0
+                        for i, option in enumerate(zadanie_task_options):
+                            if option.startswith(current_zadanie + " -"):
+                                default_zadanie_index = i
+                                break
+                        
+                        selected_zadanie_option = st.selectbox(
+                            "Zadanie",
+                            options=zadanie_task_options,
+                            index=default_zadanie_index,
+                            key="edit_zadanie_selectbox"
+                        )
+                        edited_task = selected_zadanie_option.split(' - ')[0] if selected_zadanie_option else ""
+                    else:
+                        edited_task = st.text_input(
+                            "Zadanie",
+                            value=str(editing_comment.get('Wymiar10', '')),
+                            key="edit_zadanie_input"
+                        )
             
             # Wymiary - sekcja z własnymi kolumnami
             st.markdown("**Wymiary**")
@@ -618,6 +675,33 @@ def display_invoice_comments(invoice_id: str, company: str):
                         value=str(editing_comment.get('Wymiar8', '')),
                         key="edit_rodzaj_inwest_input"
                     )
+                
+                # INFORM. KW - z selectbox
+                inform_kw = get_dimensions(company, "INFORM. KW")
+                if inform_kw:
+                    inform_kw_options = [f"{dim['Code']} - {dim['Name']}" for dim in inform_kw]
+                    inform_kw_options.insert(0, "")
+                    
+                    current_inform_kw = str(editing_comment.get('Wymiar9', ''))
+                    default_inform_kw_index = 0
+                    for i, option in enumerate(inform_kw_options):
+                        if option.startswith(current_inform_kw + " -"):
+                            default_inform_kw_index = i
+                            break
+                    
+                    selected_inform_kw_option = st.selectbox(
+                        "INFORM. KW",
+                        options=inform_kw_options,
+                        index=default_inform_kw_index,
+                        key="edit_inform_kw_selectbox"
+                    )
+                    edited_inform_kw = selected_inform_kw_option.split(' - ')[0] if selected_inform_kw_option else ""
+                else:
+                    edited_inform_kw = st.text_input(
+                        "INFORM. KW",
+                        value=str(editing_comment.get('Wymiar9', '')),
+                        key="edit_inform_kw_input"
+                    )
             
             # Separator przed przyciskami
             st.markdown("---")
@@ -630,21 +714,22 @@ def display_invoice_comments(invoice_id: str, company: str):
                 cancel_button = st.form_submit_button("Anuluj")
             
             if save_button and edited_comment_text.strip():
-                # Przygotowanie danych do aktualizacji
+                # Przygotowanie danych do aktualizacji - używaj tych samych nazw co w database.py
                 comment_data = {
                     'comment': edited_comment_text.strip(),
                     'amount': edited_amount.strip(),
                     'budget_pos': edited_budget_pos.strip(),
                     'account': edited_account.strip(),
                     'task': edited_task.strip(),
-                    'dzialanosc': edited_dzialanosc.strip(),
+                    'dzialanosc': edited_dzialanosc.strip(),  # Uwaga: literówka w database.py
                     'rejon': edited_rejon.strip(),
                     'zusl': edited_zusl.strip(),
                     'zasoby': edited_zasoby.strip(),
                     'nr_poz_budz_inwest': edited_nr_poz_budz_inwest.strip(),
                     'zespol5': edited_zespol5.strip(),
                     'grupa_kapit': edited_grupa_kapit.strip(),
-                    'rodzaj_inwest': edited_rodzaj_inwest.strip()
+                    'rodzaj_inwest': edited_rodzaj_inwest.strip(),
+                    'inform_kw': edited_inform_kw.strip()
                 }
                 
                 # Wywołanie funkcji aktualizacji komentarza
@@ -989,7 +1074,8 @@ def display_invoice_comments(invoice_id: str, company: str):
                     zespol5=st.session_state.nowy_komentarz.get('W7_Zespol5', ''),
                     grupa_kapit=st.session_state.nowy_komentarz.get('W8_Gr_kapit', ''),
                     rodzaj_inwestycji=st.session_state.nowy_komentarz.get('W9_Rodzaj_inw', ''),
-                    inform_kw=st.session_state.nowy_komentarz.get('W10_InformKW', '')
+                    inform_kw=st.session_state.nowy_komentarz.get('W10_InformKW', ''),
+                    zadanie_task=st.session_state.nowy_komentarz.get('Zadanie', '')
                 )
                 
                 # Dodawanie komentarza do bazy danych
