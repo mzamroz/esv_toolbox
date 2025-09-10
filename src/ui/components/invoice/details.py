@@ -1079,7 +1079,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                 )
                 
                 # Dodawanie komentarza do bazy danych
-                success = add_comment(new_comment)
+                success = add_comment(new_comment, st.session_state.username)
                 if success:
                     st.success("Komentarz został dodany.")
                     # Ustawienie flagi resetowania formularza

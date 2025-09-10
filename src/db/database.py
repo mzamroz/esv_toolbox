@@ -442,12 +442,13 @@ def fetch_comments(company: str, document_no: str) -> List[Dict[str, Any]]:
     finally:
         conn.close()
 
-def add_comment(comment: Comment) -> Dict[str, str]:
+def add_comment(comment: Comment, user: str) -> Dict[str, str]:
     """
     Dodaje komentarz do dokumentu.
     
     Args:
         comment: Obiekt komentarza
+        user: Nazwa użytkownika
         
     Returns:
         Status operacji
@@ -487,7 +488,7 @@ def add_comment(comment: Comment) -> Dict[str, str]:
             ,'{comment.document_no}'
             ,@LineNo
             ,Convert(Date,GETDATE())
-            ,''
+            ,'ESV\\{user}'
             ,'{comment.comment}'
             ,default
             ,GETDATE()
@@ -527,7 +528,7 @@ def add_comment(comment: Comment) -> Dict[str, str]:
             ,@LineNo
             ,0
             ,\'{comment.nr_poz_budz}\'
-            ,''
+            ,'{comment.zadanie_task or ""}'
             ,\'{comment.nr_konta}\'
             ,\'{comment.kwota_netto}\'
             ,\'{comment.dzialalnosc}\'
@@ -614,8 +615,9 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
             ,[Wymiar6] = '{zespol5}'
             ,[Wymiar7] = '{grupa_kapit}'
             ,[Wymiar8] = '{rodzaj_inwest}'
-            ,[Wymiar9] = '{comment_data.get("inform_kw", "").replace("'", "''")}'
+            ,[Wymiar9] = '{comment_data.get("inform_kw", "").replace("'", "''") if "inform_kw" in comment_data else ""}'
             ,[Wymiar10] = '{task}'
+            ,[Zadanie] = '{task}'
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
         
