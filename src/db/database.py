@@ -528,19 +528,19 @@ def add_comment(comment: Comment, user: str) -> Dict[str, str]:
             ,@LineNo
             ,0
             ,\'{comment.nr_poz_budz}\'
-            ,'{comment.zadanie_task or ""}'
+            ,\'{comment.zadanie_task or ""}\'
             ,\'{comment.nr_konta}\'
             ,\'{comment.kwota_netto}\'
             ,\'{comment.dzialalnosc}\'
             ,\'{comment.rejon}\'
             ,\'{comment.zusl}\'
+            ,''
             ,\'{comment.zasoby}\'
             ,\'{comment.nr_poz_budz_inwest}\'
             ,\'{comment.zespol5}\'
             ,\'{comment.grupa_kapit}\'
             ,\'{comment.rodzaj_inwestycji}\'
             ,\'{comment.inform_kw}\'
-            ,\'{comment.zadanie_task}\'
             ,0
             )
         '''
@@ -596,7 +596,7 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
         SQL_QUERY_1 = f'''
             UPDATE [dbo].[{company}$Comment Line$437dbf0e-84ff-417a-965d-ed2bb9650972]
             SET [Comment] = '{comment_text}'
-            ,[Date] = GETDATE()
+            ,[Date] = Convert(Date,GETDATE())
             ,[Code] = ''
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
@@ -610,13 +610,12 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
             ,[Wymiar1] = '{dzialanosc}'
             ,[Wymiar2] = '{rejon}'
             ,[Wymiar3] = '{zusl}'
-            ,[Wymiar4] = '{zasoby}'
-            ,[Wymiar5] = '{nr_poz_budz_inwest}'
-            ,[Wymiar6] = '{zespol5}'
-            ,[Wymiar7] = '{grupa_kapit}'
-            ,[Wymiar8] = '{rodzaj_inwest}'
-            ,[Wymiar9] = '{comment_data.get("inform_kw", "").replace("'", "''") if "inform_kw" in comment_data else ""}'
-            ,[Wymiar10] = '{task}'
+            ,[Wymiar5] = '{zasoby}'
+            ,[Wymiar6] = '{nr_poz_budz_inwest}'
+            ,[Wymiar7] = '{zespol5}'
+            ,[Wymiar8] = '{grupa_kapit}'
+            ,[Wymiar9] = '{rodzaj_inwest}'
+            ,[Wymiar10] = '{comment_data.get("inform_kw", "").replace("'", "''") if "inform_kw" in comment_data else ""}'
             ,[Zadanie] = '{task}'
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
