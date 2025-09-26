@@ -579,10 +579,19 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
         
         # Przygotowanie wartości z escapowaniem apostrofów
         comment_text = comment_data.get('comment', '').replace("'", "''")
-        amount = comment_data.get('amount', '')
+        # Walidacja amount - musi być liczbą lub '0'
+        amount_raw = comment_data.get('amount', '').strip()
+        if amount_raw and amount_raw != '':
+            try:
+                # Sprawdź czy to liczba
+                float(amount_raw)
+                amount = amount_raw
+            except ValueError:
+                amount = '0'
+        else:
+            amount = '0'
         budget_pos = comment_data.get('budget_pos', '').replace("'", "''")
         account = comment_data.get('account', '').replace("'", "''")
-        task = comment_data.get('task', '').replace("'", "''")
         dzialanosc = comment_data.get('dzialanosc', '').replace("'", "''")
         rejon = comment_data.get('rejon', '').replace("'", "''")
         zusl = comment_data.get('zusl', '').replace("'", "''")
@@ -591,6 +600,7 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
         zespol5 = comment_data.get('zespol5', '').replace("'", "''")
         grupa_kapit = comment_data.get('grupa_kapit', '').replace("'", "''")
         rodzaj_inwest = comment_data.get('rodzaj_inwest', '').replace("'", "''")
+        inform_kw = comment_data.get('inform_kw', '').replace("'", "''")
         
         # Aktualizacja pierwszej tabeli (podstawowe informacje o komentarzu)
         SQL_QUERY_1 = f'''
@@ -610,13 +620,14 @@ def update_comment(document_no: str, company: str, line_no: str, comment_data: D
             ,[Wymiar1] = '{dzialanosc}'
             ,[Wymiar2] = '{rejon}'
             ,[Wymiar3] = '{zusl}'
+            ,[Wymiar4] = ''
             ,[Wymiar5] = '{zasoby}'
             ,[Wymiar6] = '{nr_poz_budz_inwest}'
             ,[Wymiar7] = '{zespol5}'
             ,[Wymiar8] = '{grupa_kapit}'
             ,[Wymiar9] = '{rodzaj_inwest}'
-            ,[Wymiar10] = '{comment_data.get("inform_kw", "").replace("'", "''") if "inform_kw" in comment_data else ""}'
-            ,[Zadanie] = '{task}'
+            ,[Wymiar10] = '{inform_kw}'
+            ,[Zadanie] = ''
             WHERE [No_] = '{document_no}' AND [Line No_] = {line_no}
         '''
         

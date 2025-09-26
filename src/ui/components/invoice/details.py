@@ -308,9 +308,27 @@ def display_invoice_comments(invoice_id: str, company: str):
             
             with edit_col_left:
                 # Kwota netto
+                # Formatowanie kwoty z bazy danych - konwersja z notacji naukowej na liczbę z 2 miejscami po przecinku
+                amount_value = editing_comment.get('Amount', '')
+                formatted_amount = ""
+
+                if amount_value is not None and str(amount_value).strip():
+                    try:
+                        # Konwersja na float i formatowanie do 2 miejsc po przecinku
+                        amount_float = float(str(amount_value))
+                        # Jeśli wartość jest bardzo mała (jak 0E-20), ustaw na 0
+                        if abs(amount_float) < 1e-10:
+                            formatted_amount = "0.00"
+                        else:
+                            formatted_amount = f"{amount_float:.2f}"
+                    except (ValueError, TypeError) as e:
+                        # W przypadku błędu, wyświetl oryginalną wartość
+                        formatted_amount = str(amount_value)
+                        st.warning(f"Nie można sformatować kwoty: {amount_value} (błąd: {e})")
+
                 edited_amount = st.text_input(
-                    "Kwota netto",
-                    value=str(editing_comment.get('Amount', '')),
+                    "Kwota netto (pole obliczeniowe)",
+                    value=formatted_amount,
                     key="edit_amount_input"
                 )
                 
@@ -341,7 +359,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                             break
                     
                     selected_budget_option = st.selectbox(
-                        "Pozycja budżetowa",
+                        "Wybierz pozycję budżetową",
                         options=budget_options,
                         index=default_budget_index,
                         key="edit_budget_pos_selectbox"
@@ -353,7 +371,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                         edited_budget_pos = ""
                 else:
                     edited_budget_pos = st.text_input(
-                        "Pozycja budżetowa",
+                        "Wybierz pozycję budżetową",
                         value=str(editing_comment.get('Pozycja budżetowa', '')),
                         key="edit_budget_pos_input"
                     )
@@ -374,7 +392,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                             break
                     
                     selected_account_option = st.selectbox(
-                        "Nr konta",
+                        "Wybierz konto",
                         options=account_options,
                         index=default_account_index,
                         key="edit_account_selectbox"
@@ -386,13 +404,50 @@ def display_invoice_comments(invoice_id: str, company: str):
                         edited_account = ""
                 else:
                     edited_account = st.text_input(
-                        "Nr konta",
+                        "Wybierz konto",
                         value=str(editing_comment.get('Account No_', '')),
                         key="edit_account_input"
                     )
                 
-                # Zadanie - usunięte z edycji, tylko do odczytu
-                edited_task = str(editing_comment.get('Wymiar10', ''))
+                # Zadanie - z logika podobna do nowego komentarza
+                current_zusl_code = edited_zusl if 'edited_zusl' in locals() else str(editing_comment.get('Wymiar3', ''))
+                if current_zusl_code:
+                    zadanie_tasks = get_job_tasks(company, current_zusl_code)
+                    if zadanie_tasks:
+                        zadanie_options = [f"{task['Job Task No_']} - {task['Description']}" for task in zadanie_tasks]
+                        zadanie_options.insert(0, "")
+
+                        current_task = str(editing_comment.get('Wymiar10', ''))
+                        default_task_index = 0
+                        for i, option in enumerate(zadanie_options):
+                            if option.startswith(current_task + " -"):
+                                default_task_index = i
+                                break
+
+                        # Usunięto selectbox Zadanie z edycji
+                        pass
+                    else:
+                        # Usunięto text_input Zadanie z edycji
+                        pass
+                else:
+                    # Fallback do wymiarów JOB TASK jeśli brak ZUSL
+                    zadanie_task = get_dimensions(company, "JOB TASK")
+                    if zadanie_task:
+                        zadanie_task_options = [f"{dim['Code']} - {dim['Name']}" for dim in zadanie_task]
+                        zadanie_task_options.insert(0, "")
+
+                        current_task = str(editing_comment.get('Wymiar10', ''))
+                        default_task_index = 0
+                        for i, option in enumerate(zadanie_task_options):
+                            if option.startswith(current_task + " -"):
+                                default_task_index = i
+                                break
+
+                        # Usunięto selectbox Zadanie z edycji (fallback JOB TASK)
+                        pass
+                    else:
+                        # Usunięto pole Zadanie z edycji
+                        pass
             
             # Wymiary - sekcja z własnymi kolumnami
             st.markdown("**Wymiary**")
@@ -453,19 +508,19 @@ def display_invoice_comments(invoice_id: str, company: str):
                         key="edit_rejon_input"
                     )
                 
-                # Zadanie usługowe - z selectbox
+                # Zadanie usługowe - z selectbox (z logika Zadanie)
                 zusl = get_dimensions(company, "Z.USL")
                 if zusl:
                     zusl_options = [f"{dim['Code']} - {dim['Name']}" for dim in zusl]
                     zusl_options.insert(0, "")
-                    
+
                     current_zusl = str(editing_comment.get('Wymiar3', ''))
                     default_zusl_index = 0
                     for i, option in enumerate(zusl_options):
                         if option.startswith(current_zusl + " -"):
                             default_zusl_index = i
                             break
-                    
+
                     selected_zusl_option = st.selectbox(
                         "Zadanie usługowe",
                         options=zusl_options,
@@ -485,14 +540,14 @@ def display_invoice_comments(invoice_id: str, company: str):
                 if nr_poz_budz_inwest:
                     nr_poz_budz_inwest_options = [f"{dim['Code']} - {dim['Name']}" for dim in nr_poz_budz_inwest]
                     nr_poz_budz_inwest_options.insert(0, "")
-                    
-                    current_nr_poz_budz_inwest = str(editing_comment.get('Wymiar5', ''))
+
+                    current_nr_poz_budz_inwest = str(editing_comment.get('Wymiar6', ''))
                     default_nr_poz_budz_inwest_index = 0
                     for i, option in enumerate(nr_poz_budz_inwest_options):
                         if option.startswith(current_nr_poz_budz_inwest + " -"):
                             default_nr_poz_budz_inwest_index = i
                             break
-                    
+
                     selected_nr_poz_budz_inwest_option = st.selectbox(
                         "Nr poz. budż. inwest.",
                         options=nr_poz_budz_inwest_options,
@@ -513,16 +568,26 @@ def display_invoice_comments(invoice_id: str, company: str):
                 if zasoby:
                     zasoby_options = [f"{dim['Code']} - {dim['Name']}" for dim in zasoby]
                     zasoby_options.insert(0, "")
-                    
-                    current_zasoby = str(editing_comment.get('Wymiar4', ''))
+
+                    current_zasoby = str(editing_comment.get('Wymiar5', ''))
                     default_zasoby_index = 0
+
                     for i, option in enumerate(zasoby_options):
-                        if option.startswith(current_zasoby + " -"):
+                        # Normalizuj znaki dla porównania (zamień polskie znaki na ASCII)
+                        def normalize_for_comparison(text):
+                            return text.replace('ą', 'a').replace('ć', 'c').replace('ę', 'e').replace('ł', 'l').replace('ń', 'n').replace('ó', 'o').replace('ś', 's').replace('ź', 'z').replace('ż', 'z').replace('Ą', 'A').replace('Ć', 'C').replace('Ę', 'E').replace('Ł', 'L').replace('Ń', 'N').replace('Ó', 'O').replace('Ś', 'S').replace('Ź', 'Z').replace('Ż', 'Z')
+
+                        normalized_option = normalize_for_comparison(option)
+                        normalized_current = normalize_for_comparison(current_zasoby)
+
+                        if (normalized_option.startswith(normalized_current + " -") or
+                            normalized_option.startswith(normalized_current) or
+                            normalized_current in normalized_option):
                             default_zasoby_index = i
                             break
                     
                     selected_zasoby_option = st.selectbox(
-                        "Zasoby",
+                        "Zasób",
                         options=zasoby_options,
                         index=default_zasoby_index,
                         key="edit_zasoby_selectbox"
@@ -530,8 +595,8 @@ def display_invoice_comments(invoice_id: str, company: str):
                     edited_zasoby = selected_zasoby_option.split(' - ')[0] if selected_zasoby_option else ""
                 else:
                     edited_zasoby = st.text_input(
-                        "Zasoby",
-                        value=str(editing_comment.get('Wymiar4', '')),
+                        "Zasób",
+                        value=str(editing_comment.get('Wymiar5', '')),
                         key="edit_zasoby_input"
                     )
                 
@@ -541,7 +606,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                     zespol5_options = [f"{dim['Code']} - {dim['Name']}" for dim in zespol5]
                     zespol5_options.insert(0, "")
                     
-                    current_zespol5 = str(editing_comment.get('Wymiar6', ''))
+                    current_zespol5 = str(editing_comment.get('Wymiar7', ''))
                     default_zespol5_index = 0
                     for i, option in enumerate(zespol5_options):
                         if option.startswith(current_zespol5 + " -"):
@@ -558,7 +623,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                 else:
                     edited_zespol5 = st.text_input(
                         "Zespół 5",
-                        value=str(editing_comment.get('Wymiar6', '')),
+                        value=str(editing_comment.get('Wymiar7', '')),
                         key="edit_zespol5_input"
                     )
                 
@@ -568,7 +633,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                     grupa_kapit_options = [f"{dim['Code']} - {dim['Name']}" for dim in grupa_kapit]
                     grupa_kapit_options.insert(0, "")
                     
-                    current_grupa_kapit = str(editing_comment.get('Wymiar7', ''))
+                    current_grupa_kapit = str(editing_comment.get('Wymiar8', ''))
                     default_grupa_kapit_index = 0
                     for i, option in enumerate(grupa_kapit_options):
                         if option.startswith(current_grupa_kapit + " -"):
@@ -586,14 +651,14 @@ def display_invoice_comments(invoice_id: str, company: str):
                     # Brak wymiarów w bazie - tylko do odczytu
                     st.text_input(
                         "Grupa kapitałowa",
-                        value=str(editing_comment.get('Wymiar7', '')),
+                        value=str(editing_comment.get('Wymiar8', '')),
                         disabled=True,
                         key="edit_grupa_kapit_readonly"
                     )
-                    edited_grupa_kapit = str(editing_comment.get('Wymiar7', ''))
+                    edited_grupa_kapit = str(editing_comment.get('Wymiar8', ''))
                 
-                # Rodzaj inwestycji - usunięte, nie można wprowadzać
-                edited_rodzaj_inwest = str(editing_comment.get('Wymiar8', ''))
+                # Rodzaj inwestycji - usunięte z edycji, tylko do odczytu
+                edited_rodzaj_inwest = str(editing_comment.get('Wymiar9', ''))
                 
                 # INFORM. KW - z selectbox
                 inform_kw = get_dimensions(company, "INFORM. KW")
@@ -601,7 +666,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                     inform_kw_options = [f"{dim['Code']} - {dim['Name']}" for dim in inform_kw]
                     inform_kw_options.insert(0, "")
                     
-                    current_inform_kw = str(editing_comment.get('Wymiar9', ''))
+                    current_inform_kw = str(editing_comment.get('Wymiar10', ''))
                     default_inform_kw_index = 0
                     for i, option in enumerate(inform_kw_options):
                         if option.startswith(current_inform_kw + " -"):
@@ -618,7 +683,7 @@ def display_invoice_comments(invoice_id: str, company: str):
                 else:
                     edited_inform_kw = st.text_input(
                         "INFORM. KW",
-                        value=str(editing_comment.get('Wymiar9', '')),
+                        value=str(editing_comment.get('Wymiar10', '')),
                         key="edit_inform_kw_input"
                     )
             
@@ -639,7 +704,6 @@ def display_invoice_comments(invoice_id: str, company: str):
                     'amount': edited_amount.strip(),
                     'budget_pos': edited_budget_pos.strip(),
                     'account': edited_account.strip(),
-                    'task': edited_task.strip(),
                     'dzialanosc': edited_dzialanosc.strip(),  # Uwaga: literówka w database.py
                     'rejon': edited_rejon.strip(),
                     'zusl': edited_zusl.strip(),
@@ -794,14 +858,6 @@ def display_invoice_comments(invoice_id: str, company: str):
                 if accounts:
                     # Tworzenie DataFrame z kontami
                     accounts_df = pd.DataFrame(accounts)
-                    display_columns = ['No_', 'Name', 'Search Name']
-                    display_columns = [col for col in display_columns if col in accounts_df.columns]
-                    column_names = {
-                        'No_': 'Numer konta',
-                        'Name': 'Nazwa',
-                        'Search Name': 'Nazwa wyszukiwania'
-                    }
-                    accounts_df_display = accounts_df[display_columns].rename(columns=column_names)
                     
                     # Przygotowanie opcji do selectboxa
                     account_options = [f"{row['No_']} - {row['Name']}" for _, row in accounts_df.iterrows()]
