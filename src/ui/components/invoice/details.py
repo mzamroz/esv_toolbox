@@ -328,6 +328,7 @@ def display_invoice_comments(invoice_id: str, company: str):
 
                 edited_amount = st.text_input(
                     "Kwota netto (pole obliczeniowe)",
+                    help="Wprowadź wartość liczbową lub działanie matematyczne (np. 2+2-1). Przecinek zostanie automatycznie zamieniony na kropkę.",
                     value=formatted_amount,
                     key="edit_amount_input"
                 )
@@ -698,10 +699,13 @@ def display_invoice_comments(invoice_id: str, company: str):
                 cancel_button = st.form_submit_button("Anuluj")
             
             if save_button and edited_comment_text.strip():
+                # Zamiana przecinka na kropkę w kwocie
+                processed_amount = edited_amount.strip().replace(',', '.')
+
                 # Przygotowanie danych do aktualizacji - używaj tych samych nazw co w database.py
                 comment_data = {
                     'comment': edited_comment_text.strip(),
-                    'amount': edited_amount.strip(),
+                    'amount': processed_amount,
                     'budget_pos': edited_budget_pos.strip(),
                     'account': edited_account.strip(),
                     'dzialanosc': edited_dzialanosc.strip(),  # Uwaga: literówka w database.py
